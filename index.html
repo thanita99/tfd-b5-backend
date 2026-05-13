@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>w9-passport Client</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/vue-router@4/dist/vue-router.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  </head>
+  <body class="bg-gray-50">
+    <div id="app">
+      <nav class="bg-white shadow-lg">
+        <div class="max-w-6xl mx-auto px-4">
+          <div class="flex justify-between">
+            <div class="flex space-x-7">
+              <div>
+                <router-link to="/" class="flex items-center py-4 px-2">
+                  <span class="font-semibold text-gray-500 text-lg"
+                    >w9-passport</span
+                  >
+                </router-link>
+              </div>
+              <div v-if="user" class="flex items-center space-x-4">
+                <router-link
+                  to="/posts"
+                  class="py-2 px-4 font-medium text-gray-500 rounded hover:bg-gray-100 transition duration-300"
+                  active-class="bg-gray-100 text-blue-500"
+                >
+                  Posts
+                </router-link>
+              </div>
+            </div>
+            <div class="flex items-center space-x-3">
+              <span v-if="user" class="text-sm text-gray-600"
+                >{{ user.username }}</span
+              >
+              <router-link
+                v-if="!user"
+                to="/login"
+                class="py-2 px-4 font-medium text-gray-500 rounded hover:bg-gray-100 transition duration-300"
+              >
+                Login
+              </router-link>
+              <button
+                v-if="user"
+                @click="logout"
+                class="py-2 px-4 font-medium text-white bg-red-500 rounded hover:bg-red-600 transition duration-300"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div class="container max-w-6xl mx-auto px-4 py-8">
+        <!-- Alert Messages -->
+        <div
+          v-if="message"
+          :class="messageType === 'error' ? 'bg-red-100 border-red-400 text-red-700' : 'bg-green-100 border-green-400 text-green-700'"
+          class="border px-4 py-3 rounded mb-4"
+        >
+          {{ message }}
+        </div>
+
+        <!-- Router View -->
+        <router-view
+          :user="user"
+          :posts="posts"
+          :show-post-form="showPostForm"
+          :editing-post="editingPost"
+          :post-form="postForm"
+          :login-form="loginForm"
+          :api-base="API_BASE"
+          @toggle-post-form="showPostForm = !showPostForm"
+          @login="login"
+          @save-post="savePost"
+          @edit-post="editPost"
+          @delete-post="deletePost"
+          @can-edit-post="canEditPost"
+          @format-date="formatDate"
+          @update:login-form="loginForm = $event"
+          @update:post-form="postForm = $event"
+        ></router-view>
+      </div>
+    </div>
+
+    <script>
+      const { createApp } = Vue;
+      const { createRouter, createWebHashHistory } = VueRouter;
+
+      // Components
+      const Home = {
+        template: `
+          <div class="text-center py-16">
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">
+              Welcome to w9-passport
+            </h1>
+            <p class="text-gray-600 mb-8">
+              Please login to access posts and features
+            </p>
+            <router-link
+              to="/login"
+              class="inline-block bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg"
+            >
+              Get Started
+            </router-link>
+          </div>
+        `,
+      };
+
+      const Login = {
+        props: ["apiBase", "loginForm"],
+        emits: ["login", "update:loginForm"],
+        template: `
+          <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Login</h2>
+            <form @submit.prevent="$emit('login')">
+              <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="email">Email</label>
+                <input
+                  :value="loginForm.email"
+                  @input="$emit('update:loginForm', { ...loginForm, email: $event.target.value })"
+                  type="email"
+                  id="email"
+                  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  required
+                />
+              </div>
+              <div class="mb-6">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="password">Password</label>
+                <input
+                  :value="loginForm.password"
+                  @input="$emit('update:loginForm', { ...loginForm, password: $event.target.value })"
+                  type="password"
+                  id="password"
+                  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                class="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+              >
+                Login
+              </button>
+            </form>
+
+            <div class="mt-6">
+              <div class="relative">
+                <div class="absolute inset-0 flex items-center">
+                  <div class="w-full border-t border-gray-300"></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                  <span class="px-2 bg-white text-gray-500">Or continue with</span>
+                </div>
+              </div>
+
+              <div class="mt-6 grid grid-cols-2 gap-3">
+                <a :href="apiBase + '/auth/google'" class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/>
+                  </svg>
+                  <span class="ml-2">Google</span>
+                </a>
+                <a :href="apiBase + '/auth/github'" class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 0C4.477 0 0 4.484 0 10.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0020 10.017C20 4.484 15.522 0 10 0z" clip-rule="evenodd"/>
+                  </svg>
+                  <span class="ml-2">GitHub</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        `,
+      };
+
+      const Posts = {
+        props: ["posts", "showPostForm", "editingPost", "postForm", "user"],
+        emits: [
+          "toggle-post-form",
+          "save-post",
+          "edit-post",
+          "delete-post",
+          "update:postForm",
+        ],
+        methods: {
+          canEditPost(post) {
+            return (
+              this.user &&
+              (post.author?._id === this.user.id || this.user.role === "admin")
+            );
+          },
+          formatDate(dateString) {
+            const options = { year: "numeric", month: "short", day: "numeric" };
+            return new Date(dateString).toLocaleDateString(undefined, options);
+          },
+        },
+        template: `
+          <div>
+            <div class="flex justify-between items-center mb-6">
+              <h2 class="text-2xl font-bold text-gray-800">Posts</h2>
+              <button
+                @click="$emit('toggle-post-form')"
+                class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+              >
+                {{ showPostForm ? 'Cancel' : 'New Post' }}
+              </button>
+            </div>
+
+            <!-- Post Form -->
+            <div v-if="showPostForm" class="bg-white rounded-lg shadow-md p-6 mb-6">
+              <h3 class="text-xl font-bold mb-4">
+                {{ editingPost ? 'Edit Post' : 'Create Post' }}
+              </h3>
+              <form @submit.prevent="$emit('save-post')">
+                <div class="mb-4">
+                  <label class="block text-gray-700 text-sm font-bold mb-2" for="title">Title</label>
+                  <input
+                    :value="postForm.title"
+                    @input="$emit('update:postForm', { ...postForm, title: $event.target.value })"
+                    type="text"
+                    id="title"
+                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    required
+                  />
+                </div>
+                <div class="mb-4">
+                  <label class="block text-gray-700 text-sm font-bold mb-2" for="content">Content</label>
+                  <textarea
+                    :value="postForm.content"
+                    @input="$emit('update:postForm', { ...postForm, content: $event.target.value })"
+                    id="content"
+                    rows="4"
+                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    required
+                  ></textarea>
+                </div>
+                <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                  {{ editingPost ? 'Update' : 'Create' }}
+                </button>
+              </form>
+            </div>
+
+            <!-- Posts List -->
+            <div class="grid gap-4">
+              <div v-for="post in posts" :key="post._id" class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">{{ post.title }}</h3>
+                    <p class="text-gray-600 mb-4">{{ post.content }}</p>
+                    <div class="text-sm text-gray-500">
+                      <span>Author: {{ post.author?.username || 'Unknown' }}</span>
+                      <span class="mx-2">•</span>
+                      <span>{{ formatDate(post.createdAt) }}</span>
+                    </div>
+                  </div>
+                  <div v-if="canEditPost(post)" class="flex gap-2 ml-4">
+                    <button @click="$emit('edit-post', post)" class="text-blue-500 hover:text-blue-700">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                      </svg>
+                    </button>
+                    <button @click="$emit('delete-post', post._id)" class="text-red-500 hover:text-red-700">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div v-if="posts.length === 0" class="text-center text-gray-500 py-8">
+                No posts yet. Create your first post!
+              </div>
+            </div>
+          </div>
+        `,
+      };
+
+      // Router setup
+      const routes = [
+        { path: "/", component: Home, meta: { requiresGuest: true } },
+        { path: "/login", component: Login, meta: { requiresGuest: true } },
+        { path: "/posts", component: Posts, meta: { requiresAuth: true } },
+      ];
+
+      const router = createRouter({
+        history: createWebHashHistory(),
+        routes,
+      });
+
+      // App instance
+      const app = createApp({
+        data() {
+          return {
+            API_BASE: "http://localhost:3000/api",
+            user: null,
+            token: localStorage.getItem("token") || null,
+            loginForm: {
+              email: "",
+              password: "",
+            },
+            postForm: {
+              title: "",
+              content: "",
+            },
+            posts: [],
+            showPostForm: false,
+            editingPost: null,
+            message: "",
+            messageType: "success",
+          };
+        },
+        async mounted() {
+          // Check for OAuth callback (token from query string)
+          const urlParams = new URLSearchParams(window.location.search);
+          const token = urlParams.get("token");
+          if (token) {
+            this.token = token;
+            localStorage.setItem("token", token);
+            // Clean URL by removing query string and redirecting to posts
+            window.history.replaceState(
+              {},
+              document.title,
+              window.location.pathname,
+            );
+            await this.verifyToken();
+            // Small delay to ensure state is updated before navigation
+            await this.$nextTick();
+            this.$router.push("/posts");
+          } else if (this.token) {
+            await this.verifyToken();
+          }
+        },
+        methods: {
+          async login() {
+            try {
+              const { data } = await axios.post(
+                `${this.API_BASE}/auth/login`,
+                this.loginForm,
+              );
+
+              if (data.token) {
+                this.token = data.token;
+                localStorage.setItem("token", this.token);
+                this.user = {
+                  id: data.userId,
+                  email: data.email,
+                  username: data.username,
+                  role: data.role,
+                };
+                this.showMessage("Login successful!", "success");
+                this.loginForm = { email: "", password: "" };
+                await this.fetchPosts();
+                this.$router.push("/posts");
+              } else {
+                this.showMessage(data.message || "Login failed", "error");
+              }
+            } catch (error) {
+              this.showMessage(
+                error.response?.data?.message || "Error connecting to server",
+                "error",
+              );
+              console.error(error);
+            }
+          },
+          async verifyToken() {
+            try {
+              await axios.get(`${this.API_BASE}/posts`, {
+                headers: {
+                  Authorization: `Bearer ${this.token}`,
+                },
+              });
+
+              // Token is valid, decode it to get user info
+              const payload = JSON.parse(atob(this.token.split(".")[1]));
+              this.user = {
+                id: payload.sub,
+                email: payload.email,
+                username: payload.username,
+                role: payload.role,
+              };
+              await this.fetchPosts();
+            } catch (error) {
+              console.error("Token verification failed:", error);
+              this.token = null;
+              this.user = null;
+              localStorage.removeItem("token");
+            }
+          },
+          async logout() {
+            try {
+              await axios.post(
+                `${this.API_BASE}/auth/logout`,
+                {},
+                {
+                  headers: {
+                    Authorization: `Bearer ${this.token}`,
+                  },
+                },
+              );
+            } catch (error) {
+              console.error("Logout error:", error);
+            } finally {
+              this.token = null;
+              this.user = null;
+              this.posts = [];
+              localStorage.removeItem("token");
+              this.$router.push("/");
+              this.showMessage("Logged out successfully", "success");
+            }
+          },
+          async fetchPosts() {
+            try {
+              const { data } = await axios.get(`${this.API_BASE}/posts`, {
+                headers: {
+                  Authorization: `Bearer ${this.token}`,
+                },
+              });
+
+              this.posts = data.data || [];
+            } catch (error) {
+              if (error.response?.status === 401) {
+                this.showMessage(
+                  "Session expired, please login again",
+                  "error",
+                );
+                this.logout();
+              } else {
+                this.showMessage("Error fetching posts", "error");
+                console.error(error);
+              }
+            }
+          },
+          async savePost() {
+            try {
+              const url = this.editingPost
+                ? `${this.API_BASE}/posts/${this.editingPost._id}`
+                : `${this.API_BASE}/posts`;
+
+              const config = {
+                headers: {
+                  Authorization: `Bearer ${this.token}`,
+                },
+              };
+
+              if (this.editingPost) {
+                await axios.put(url, this.postForm, config);
+              } else {
+                await axios.post(url, this.postForm, config);
+              }
+
+              this.showMessage(
+                `Post ${this.editingPost ? "updated" : "created"} successfully!`,
+                "success",
+              );
+              this.postForm = { title: "", content: "" };
+              this.showPostForm = false;
+              this.editingPost = null;
+              await this.fetchPosts();
+            } catch (error) {
+              this.showMessage(
+                error.response?.data?.message || "Error saving post",
+                "error",
+              );
+              console.error(error);
+            }
+          },
+          editPost(post) {
+            this.editingPost = post;
+            this.postForm = {
+              title: post.title,
+              content: post.content,
+            };
+            this.showPostForm = true;
+          },
+          async deletePost(postId) {
+            if (!confirm("Are you sure you want to delete this post?")) return;
+
+            try {
+              await axios.delete(`${this.API_BASE}/posts/${postId}`, {
+                headers: {
+                  Authorization: `Bearer ${this.token}`,
+                },
+              });
+
+              this.showMessage("Post deleted successfully!", "success");
+              await this.fetchPosts();
+            } catch (error) {
+              this.showMessage(
+                error.response?.data?.message || "Error deleting post",
+                "error",
+              );
+              console.error(error);
+            }
+          },
+          canEditPost(post) {
+            return (
+              this.user &&
+              (post.author?._id === this.user.id || this.user.role === "admin")
+            );
+          },
+          formatDate(dateString) {
+            const options = { year: "numeric", month: "short", day: "numeric" };
+            return new Date(dateString).toLocaleDateString(undefined, options);
+          },
+          showMessage(msg, type = "success") {
+            this.message = msg;
+            this.messageType = type;
+            setTimeout(() => {
+              this.message = "";
+            }, 3000);
+          },
+        },
+      });
+
+      // Navigation guard
+      router.beforeEach((to, from, next) => {
+        const isAuthenticated =
+          app.config.globalProperties.$data &&
+          app.config.globalProperties.$data.user !== null;
+
+        if (to.meta.requiresAuth && !localStorage.getItem("token")) {
+          next("/login");
+        } else if (to.meta.requiresGuest && localStorage.getItem("token")) {
+          next("/posts");
+        } else {
+          next();
+        }
+      });
+
+      app.use(router);
+      app.mount("#app");
+    </script>
+  </body>
+</html>

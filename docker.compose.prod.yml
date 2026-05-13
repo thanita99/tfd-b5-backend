@@ -1,0 +1,37 @@
+services:
+  load-balancer:
+    build:
+      context: .
+      dockerfile: Dockerfile-nginx
+    depends_on:
+      - express
+    restart: unless-stopped 
+    environment:
+      - EXPRESS_HOST_1=tfd-b5-backend-express-1
+      - EXPRESS_HOST_2=tfd-b5-backend-express-2
+      - EXPRESS_PORT=3000
+      - NGINX_SERVER_NAME=localhost
+      - NGINX_MAX_BODY=100M
+    ports:
+      - 3000:3000
+  express:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - database
+    restart: unless-stopped 
+    scale: 2
+  database:
+    image: mongo:8.2.7-noble
+    container_name: devops-database
+    restart: unless-stopped 
+    ports:
+      - 27017:27017
+    volumes:
+      - devops-database-data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASS}
+volumes:
+  devops-database-data:

@@ -1,0 +1,34 @@
+services:
+  load-balancer:
+    build:
+      context: .
+      dockerfile: Dockerfile-nginx
+    depends_on:
+      - express
+    environment:
+      - EXPRESS_HOST_1=tfd-b5-backend-express-1
+      - EXPRESS_HOST_2=tfd-b5-backend-express-2
+      - EXPRESS_PORT=3000
+      - NGINX_SERVER_NAME=localhost
+      - NGINX_MAX_BODY=100M
+    ports:
+      - 3000:3000
+  express:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - database
+    volumes:
+      - ./src:/app/src
+      - .env:/app/.env
+    scale: 2
+  database:
+    image: mongo:8.2.7-noble
+    container_name: devops-database
+    ports:
+      - 27017:27017
+    volumes:
+      - devops-database-data:/data/db
+volumes:
+  devops-database-data:
