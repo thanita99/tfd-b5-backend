@@ -9,6 +9,10 @@ import passport from 'passport';
 import cors from 'cors';
 import { githubStrategy, googleStrategy, jwtAuthenticate } from './middlewares/index.js';
 
+console.log(`Current NODE_ENV: ${process.env.NODE_ENV}`);
+const envFile = `.env.${process.env.NODE_ENV || 'dev'}`;
+const envPath = path.resolve(process.cwd(), envFile);
+
 connectDB()
 
 app.use(express.json());
