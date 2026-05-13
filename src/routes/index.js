@@ -5,6 +5,7 @@ import fileRouter from './files.js';
 import authRouter from './auth.js';
 import { apiLimiter, authLimiter } from '../middlewares/index.js';
 const router = express.Router();
+// import mongoSanitize from 'express-mongo-sanitize';
 
 
 // Mount routers
